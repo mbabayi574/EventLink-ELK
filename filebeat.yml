@@ -1,0 +1,9 @@
+filebeat.inputs:
+- type: filestream
+  id: elink-tracelog
+  enabled: true
+  paths:
+    - /comptel/elink/install/EventLink/base/tracelog/*.log
+
+output.logstash:
+  hosts: ["172.29.11.202:5044"]
