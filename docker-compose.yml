@@ -1,0 +1,60 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.3
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -s http://localhost:9200/_cluster/health | grep -q "status.*green\|yellow"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Local Elastic Package Registry (EPR)
+  package-registry:
+    image: docker.elastic.co/package-registry/distribution:lite
+    container_name: package-registry
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.5.3
+    container_name: logstash
+    volumes:
+      - ./logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro,z
+    ports:
+      - "5044:5044"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.3
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      # Point Kibana to the local Package Registry container
+      - XPACK_FLEET_REGISTRYURL=http://package-registry:8080
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      package-registry:
+        condition: service_healthy
+
+volumes:
+  es_data:
